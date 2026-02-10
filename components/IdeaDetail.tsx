@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ProductIdea, SimilarityAnalysis, ImprovementSuggestion } from '../types';
-import { analyzeProductIdea, suggestImprovements, generateSRS } from '../services/geminiService';
+import { analyzeProductIdea, suggestImprovements, generateSRS } from '../services/openaiService';
 import { 
   ArrowLeft, Search, Sparkles, FileText, Download, 
   ExternalLink, Check, RefreshCw, Star, Info, 

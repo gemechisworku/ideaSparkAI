@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g transform="translate(16, 8)">
+    <!-- Lightbulb body -->
+    <path d="M16 4C9.373 4 4 9.373 4 16c0 4.418 2.386 8.283 5.938 10.375C11.14 27.18 12 28.5 12 30v2h8v-2c0-1.5.86-2.82 2.062-3.625C25.614 24.283 28 20.418 28 16c0-6.627-5.373-12-12-12z" fill="white" fill-opacity="0.95"/>
+    <!-- Filament lines -->
+    <line x1="13" y1="34" x2="19" y2="34" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="13.5" y1="37" x2="18.5" y2="37" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+    <!-- Bulb tip -->
+    <path d="M14.5 40 Q16 42 17.5 40" stroke="white" stroke-opacity="0.7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <!-- Spark rays -->
+    <line x1="16" y1="0" x2="16" y2="-2" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+    <line x1="24" y1="2" x2="26" y2="0" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+    <line x1="8" y1="2" x2="6" y2="0" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>
+

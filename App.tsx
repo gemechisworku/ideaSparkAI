@@ -6,9 +6,11 @@ import IdeaForm from './components/IdeaForm';
 import IdeaDetail from './components/IdeaDetail';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
-import { supabase, isSupabaseConfigured } from './services/supabaseClient';
+import { supabase, isSupabaseConfigured, verifySupabaseTable } from './services/supabaseClient';
+import { createLogger } from './services/logger';
 import { Lightbulb, Database, Plus, Home, Loader2, LogOut, User, AlertCircle } from 'lucide-react';
 
+const log = createLogger('App');
 const LOCAL_STORAGE_KEY = 'ideaspark_ideas_v1';
 
 const App: React.FC = () => {
@@ -17,85 +19,131 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dbReady, setDbReady] = useState<boolean | null>(null); // null = checking, true = ok, false = fallback
 
-  // Auth Listener
+  // Auth Listener + Supabase health check
   useEffect(() => {
-    if (isSupabaseConfigured && supabase) {
-      // Get initial session
-      supabase.auth.getSession().then(({ data: { session } }) => {
+    const init = async () => {
+      if (isSupabaseConfigured && supabase) {
+        log.info('Supabase is configured. Verifying table & session...');
+
+        // 1. Verify the ideas table exists
+        const tableOk = await verifySupabaseTable();
+        setDbReady(tableOk);
+
+        if (!tableOk) {
+          log.warn('Table verification failed. Using LocalStorage fallback.');
+          fetchIdeasFromLocalStorage();
+          return;
+        }
+
+        // 2. Get initial session
+        const { data: { session } } = await supabase.auth.getSession();
+        log.info('Session check complete.', { hasSession: !!session });
         setSession(session);
+
         if (session) {
-          fetchIdeas();
+          await fetchIdeasFromSupabase();
         } else {
           setIsLoading(false);
         }
-      });
 
-      // Listen for changes
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session);
-        if (session) {
-          fetchIdeas();
-          // If we were on login or landing, move to dashboard after login
-          setCurrentView(prev => (prev === AppView.LOGIN || prev === AppView.LANDING) ? AppView.DASHBOARD : prev);
-        } else {
-          setIdeas([]);
-          setIsLoading(false);
-          setCurrentView(AppView.LANDING);
-        }
-      });
+        // 3. Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          log.info('Auth state changed.', { event: _event, hasSession: !!session });
+          setSession(session);
+          if (session) {
+            fetchIdeasFromSupabase();
+            setCurrentView(prev => (prev === AppView.LOGIN || prev === AppView.LANDING) ? AppView.DASHBOARD : prev);
+          } else {
+            setIdeas([]);
+            setIsLoading(false);
+            setCurrentView(AppView.LANDING);
+          }
+        });
 
-      return () => subscription.unsubscribe();
-    } else {
-      // Fallback for local storage
-      fetchIdeas();
-    }
+        return () => subscription.unsubscribe();
+      } else {
+        log.info('Supabase not configured. Using LocalStorage.');
+        setDbReady(false);
+        fetchIdeasFromLocalStorage();
+      }
+    };
+
+    init();
   }, []);
 
-  const fetchIdeas = async () => {
+  // ─── Data Access: Supabase ───────────────────────────────────────
+
+  const fetchIdeasFromSupabase = async () => {
     setIsLoading(true);
+    log.info('Fetching ideas from Supabase...');
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase
-          .from('ideas')
-          .select('*')
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabase!
+        .from('ideas')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        
-        const formattedData: ProductIdea[] = (data || []).map(item => ({
-          id: item.id,
-          user_id: item.user_id,
-          title: item.title,
-          rawIdea: item.raw_idea,
-          problem: item.problem,
-          solution: item.solution,
-          features: item.features || [],
-          status: item.status,
-          analysis: item.analysis,
-          improvements: item.improvements,
-          acceptedImprovements: item.accepted_improvements || [],
-          srs: item.srs,
-          createdAt: new Date(item.created_at).getTime()
-        }));
+      if (error) throw error;
 
-        setIdeas(formattedData);
-      } else {
-        const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        const parsedData = localData ? JSON.parse(localData) : [];
-        setIdeas(parsedData);
-      }
-    } catch (err) {
-      console.error('Error fetching ideas:', err);
+      const formattedData: ProductIdea[] = (data || []).map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        title: item.title,
+        rawIdea: item.raw_idea,
+        problem: item.problem,
+        solution: item.solution,
+        features: item.features || [],
+        status: item.status,
+        analysis: item.analysis,
+        improvements: item.improvements,
+        acceptedImprovements: item.accepted_improvements || [],
+        srs: item.srs,
+        createdAt: new Date(item.created_at).getTime()
+      }));
+
+      log.info(`Fetched ${formattedData.length} ideas from Supabase.`);
+      setIdeas(formattedData);
+    } catch (err: any) {
+      log.error('Failed to fetch ideas from Supabase.', { message: err?.message, code: err?.code, details: err?.details });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddIdea = async (newIdea: ProductIdea) => {
+  // ─── Data Access: LocalStorage ───────────────────────────────────
+
+  const fetchIdeasFromLocalStorage = () => {
+    setIsLoading(true);
+    log.info('Fetching ideas from LocalStorage...');
     try {
-      if (isSupabaseConfigured && supabase && session) {
-        const { error } = await supabase.from('ideas').insert([{
+      const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const parsedData: ProductIdea[] = localData ? JSON.parse(localData) : [];
+      log.info(`Fetched ${parsedData.length} ideas from LocalStorage.`);
+      setIdeas(parsedData);
+    } catch (err) {
+      log.error('Failed to parse ideas from LocalStorage.', err);
+      setIdeas([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ─── Unified helpers ─────────────────────────────────────────────
+
+  const useCloud = () => isSupabaseConfigured && supabase && session && dbReady;
+
+  const saveToLocalStorage = (updatedIdeas: ProductIdea[]) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedIdeas));
+  };
+
+  // ─── CRUD ────────────────────────────────────────────────────────
+
+  const handleAddIdea = async (newIdea: ProductIdea) => {
+    log.info('Adding new idea...', { id: newIdea.id, title: newIdea.title });
+    try {
+      if (useCloud()) {
+        const { error } = await supabase!.from('ideas').insert([{
           id: newIdea.id,
           user_id: session.user.id,
           title: newIdea.title,
@@ -107,23 +155,26 @@ const App: React.FC = () => {
           created_at: new Date(newIdea.createdAt).toISOString()
         }]);
         if (error) throw error;
+        log.info('Idea saved to Supabase.', { id: newIdea.id });
       } else {
         const updatedIdeas = [newIdea, ...ideas];
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedIdeas));
+        saveToLocalStorage(updatedIdeas);
+        log.info('Idea saved to LocalStorage.', { id: newIdea.id });
       }
-      
+
       setIdeas(prev => [newIdea, ...prev]);
       setCurrentView(AppView.DASHBOARD);
-    } catch (err) {
-      console.error('Error saving idea:', err);
-      alert('Failed to save to database. Check your SQL schema in Supabase.');
+    } catch (err: any) {
+      log.error('Failed to save idea.', { message: err?.message, code: err?.code });
+      alert('Failed to save to database. Please ensure the "ideas" table exists in Supabase (see README).');
     }
   };
 
   const handleUpdateIdea = async (updatedIdea: ProductIdea) => {
+    log.info('Updating idea...', { id: updatedIdea.id, status: updatedIdea.status });
     try {
-      if (isSupabaseConfigured && supabase && session) {
-        const { error } = await supabase
+      if (useCloud()) {
+        const { error } = await supabase!
           .from('ideas')
           .update({
             title: updatedIdea.title,
@@ -137,45 +188,53 @@ const App: React.FC = () => {
             srs: updatedIdea.srs
           })
           .eq('id', updatedIdea.id);
-          
+
         if (error) throw error;
+        log.info('Idea updated in Supabase.', { id: updatedIdea.id });
       } else {
         const updatedIdeas = ideas.map(i => i.id === updatedIdea.id ? updatedIdea : i);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedIdeas));
+        saveToLocalStorage(updatedIdeas);
+        log.info('Idea updated in LocalStorage.', { id: updatedIdea.id });
       }
-      
+
       setIdeas(prev => prev.map(i => i.id === updatedIdea.id ? updatedIdea : i));
-    } catch (err) {
-      console.error('Error updating idea:', err);
+    } catch (err: any) {
+      log.error('Failed to update idea.', { message: err?.message, id: updatedIdea.id });
     }
   };
 
   const handleDeleteIdea = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this project?")) {
+      log.info('Deleting idea...', { id });
       try {
-        if (isSupabaseConfigured && supabase) {
-          const { error } = await supabase.from('ideas').delete().eq('id', id);
+        if (useCloud()) {
+          const { error } = await supabase!.from('ideas').delete().eq('id', id);
           if (error) throw error;
+          log.info('Idea deleted from Supabase.', { id });
         } else {
           const updatedIdeas = ideas.filter(i => i.id !== id);
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedIdeas));
+          saveToLocalStorage(updatedIdeas);
+          log.info('Idea deleted from LocalStorage.', { id });
         }
-        
+
         setIdeas(prev => prev.filter(i => i.id !== id));
-      } catch (err) {
-        console.error('Error deleting idea:', err);
+      } catch (err: any) {
+        log.error('Failed to delete idea.', { message: err?.message, id });
       }
     }
   };
 
   const handleLogout = async () => {
+    log.info('User logging out...');
     if (supabase) {
       await supabase.auth.signOut();
+      log.info('User signed out.');
       setCurrentView(AppView.LANDING);
     }
   };
 
   const openIdea = (id: string) => {
+    log.debug('Opening idea detail.', { id });
     setSelectedIdeaId(id);
     setCurrentView(AppView.VIEW_IDEA);
   };
@@ -184,7 +243,7 @@ const App: React.FC = () => {
 
   // Auth Guard for private views
   const isPrivateView = [AppView.DASHBOARD, AppView.CREATE, AppView.VIEW_IDEA].includes(currentView);
-  if (isSupabaseConfigured && !session && isPrivateView) {
+  if (isSupabaseConfigured && dbReady && !session && isPrivateView) {
     return <LoginPage />;
   }
 
@@ -263,6 +322,21 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8">
+        {/* Supabase configured but table missing */}
+        {isSupabaseConfigured && dbReady === false && currentView !== AppView.LANDING && (
+          <div className="mb-6 bg-red-50 border border-red-200 p-4 rounded-2xl flex items-center gap-4 text-red-800 animate-in fade-in duration-300">
+            <AlertCircle className="shrink-0" size={24} />
+            <div>
+              <p className="font-bold text-sm">Supabase Table Missing</p>
+              <p className="text-xs opacity-80">
+                The <code className="bg-red-100 px-1 rounded">ideas</code> table was not found in your Supabase instance.
+                Data is being saved to LocalStorage. Please run the SQL schema from the README to enable cloud persistence.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Supabase not configured at all */}
         {!isSupabaseConfigured && currentView !== AppView.LANDING && (
           <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-4 text-amber-800 animate-in fade-in duration-300">
             <AlertCircle className="shrink-0" size={24} />
@@ -283,7 +357,8 @@ const App: React.FC = () => {
             {currentView === AppView.LANDING && (
               <LandingPage onStart={() => {
                 if (session) setCurrentView(ideas.length > 0 ? AppView.DASHBOARD : AppView.CREATE);
-                else setCurrentView(AppView.LOGIN);
+                else if (isSupabaseConfigured && dbReady) setCurrentView(AppView.LOGIN);
+                else setCurrentView(ideas.length > 0 ? AppView.DASHBOARD : AppView.CREATE);
               }} />
             )}
 
@@ -317,9 +392,9 @@ const App: React.FC = () => {
 
       <footer className="border-t border-slate-200 bg-white py-6 px-8 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
-          <p>© 2026 IdeaSpark AI. Intelligent Innovation.</p>
-          <div className="flex gap-4 items-center">
-            {isSupabaseConfigured ? (
+          <p>© 2026 IdeaSpark AI. Your trusted innovation engine.</p>
+          {/* <div className="flex gap-4 items-center">
+            {isSupabaseConfigured && dbReady ? (
               <span className="flex items-center gap-1 text-green-600 font-medium">
                 <Database size={14} /> Cloud Vault Active
               </span>
@@ -328,7 +403,7 @@ const App: React.FC = () => {
                 <Database size={14} /> Local Storage Only
               </span>
             )}
-          </div>
+          </div> */}
         </div>
       </footer>
     </div>

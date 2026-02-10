@@ -1,6 +1,6 @@
 # IdeaSpark AI 💡
 
-IdeaSpark AI is a professional innovation engine that transforms raw product thoughts into technical blueprints. Built with React, TypeScript, and powered by Google Gemini AI, it helps entrepreneurs and developers validate ideas, discover competitors, and generate comprehensive Software Requirements Specifications (SRS) documents.
+IdeaSpark AI is a professional innovation engine that transforms raw product thoughts into technical blueprints. Built with React, TypeScript, and powered by OpenAI (GPT-4o + o3-mini), it helps entrepreneurs and developers validate ideas, discover competitors with **live web search**, and generate comprehensive Software Requirements Specifications (SRS) documents.
 
 ## 🎯 What It Does
 
@@ -16,7 +16,7 @@ IdeaSpark AI guides you through a complete product validation workflow:
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- A Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
+- An OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
 - (Optional) A Supabase account for cloud persistence and authentication
 
 ### Installation
@@ -34,7 +34,7 @@ npm install
 
 3. Create a `.env` file in the root directory:
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
 SUPABASE_URL=your_supabase_project_url (optional)
 SUPABASE_ANON_KEY=your_supabase_anon_key (optional)
 ```
@@ -52,6 +52,62 @@ The application will be available at `http://localhost:3000`
 npm run build
 npm run preview
 ```
+
+## 🚀 Deployment to Vercel
+
+IdeaSpark AI is ready to deploy to Vercel with zero configuration changes. Follow these steps:
+
+### Prerequisites
+
+- A [Vercel account](https://vercel.com/signup) (free tier works)
+- Your project pushed to GitHub, GitLab, or Bitbucket
+
+### Deployment Steps
+
+1. **Push your code to a Git repository** (if not already):
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin <your-repo-url>
+   git push -u origin main
+   ```
+
+2. **Import your project to Vercel**:
+   - Go to [vercel.com/new](https://vercel.com/new)
+   - Click "Import Git Repository"
+   - Select your repository
+   - Vercel will auto-detect Vite and use the `vercel.json` configuration
+
+3. **Configure Environment Variables**:
+   In the Vercel project settings, add these environment variables:
+   ```
+   OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your_anon_key_here
+   ```
+   
+   **Important**: 
+   - Never commit your `.env` file to Git
+   - Add `.env` to your `.gitignore` file
+   - Set these in Vercel Dashboard → Settings → Environment Variables
+
+4. **Deploy**:
+   - Click "Deploy"
+   - Vercel will build and deploy your app automatically
+   - Your app will be live at `https://your-project.vercel.app`
+
+### Post-Deployment
+
+- **Custom Domain** (optional): Add your domain in Vercel Dashboard → Settings → Domains
+- **Automatic Deployments**: Every push to your main branch triggers a new deployment
+- **Preview Deployments**: Pull requests get their own preview URLs automatically
+
+### Troubleshooting
+
+- **Build fails**: Check that all environment variables are set in Vercel
+- **API errors**: Verify `OPENAI_API_KEY` is correctly set (starts with `sk-`)
+- **404 on refresh**: The `vercel.json` rewrites rule handles this automatically
 
 ## ☁️ Cloud Setup (Supabase) - Optional
 
@@ -103,10 +159,10 @@ SUPABASE_ANON_KEY=your_anon_key
 
 ## ✨ Key Features
 
-- **AI-Powered Analysis**: Uses Google Gemini 3 Pro to analyze product ideas and discover competitors
-- **Market Intelligence**: Automatically finds similar products, SaaS solutions, and GitHub repositories
+- **AI-Powered Analysis**: Uses OpenAI GPT-4o with **live web search** to analyze product ideas and discover real competitors
+- **Market Intelligence**: Searches the live web for similar products, SaaS solutions, and GitHub repositories with real URLs
 - **Smart Suggestions**: Receives improvement recommendations based on competitor weaknesses and market gaps
-- **SRS Generation**: Creates comprehensive Software Requirements Specification documents with structured sections
+- **Deep Reasoning SRS**: Creates comprehensive SRS documents using o3-mini with high reasoning effort
 - **Cloud Persistence**: Optional Supabase integration for secure, multi-device access
 - **Authentication**: Secure login via GitHub, Google, or Email (when Supabase is configured)
 - **Modern UI**: Beautiful, responsive interface built with React and Tailwind CSS
@@ -116,7 +172,7 @@ SUPABASE_ANON_KEY=your_anon_key
 
 - **Frontend**: React 19, TypeScript
 - **Build Tool**: Vite
-- **AI**: Google Gemini 3 (Pro & Flash models)
+- **AI**: OpenAI (GPT-4o with web search, GPT-4o-mini, o3-mini with reasoning)
 - **Database**: Supabase (PostgreSQL) with Row Level Security
 - **Authentication**: Supabase Auth
 - **Charts**: Recharts
@@ -133,7 +189,7 @@ ideasparkAI/
 │   ├── LandingPage.tsx  # Landing page
 │   └── LoginPage.tsx    # Authentication page
 ├── services/            # API services
-│   ├── geminiService.ts # Gemini AI integration
+│   ├── openaiService.ts # OpenAI integration (web search + structured output)
 │   └── supabaseClient.ts # Supabase client setup
 ├── types.ts             # TypeScript type definitions
 ├── App.tsx              # Main application component
@@ -143,7 +199,7 @@ ideasparkAI/
 ## 🔄 Workflow
 
 1. **Create Idea**: Enter your product concept and initial features
-2. **Run Analysis**: AI extracts problem/solution and finds competitors with similarity scores
+2. **Run Analysis**: AI searches the live web, extracts problem/solution, and finds real competitors with similarity scores
 3. **Review Competitors**: See detailed competitor analysis with visual charts
 4. **Accept Improvements**: Select AI-suggested features to enhance your product
 5. **Generate SRS**: Create a full technical specification document
@@ -167,4 +223,4 @@ This is a personal project. Contributions are not currently being accepted.
 
 ---
 
-**Built with ❤️ using React, TypeScript, and Google Gemini AI**
+**Built with ❤️ using React, TypeScript, and OpenAI**
