@@ -1,7 +1,5 @@
 {
-  "name": "Copy of IdeaSpark AI Innovator",
+  "name": "IdeaSpark AI Innovator",
   "description": "An AI-powered product validation and refinement platform that searches the web for similar products, suggests improvements, and generates comprehensive Software Requirements Specifications (SRS).",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
+  "requestFramePermissions": []
 }
