@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ProductIdea, SimilarityAnalysis, ImprovementSuggestion } from "../types";
 
-const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fixed: Correct initialization with process.env.API_KEY as per guidelines.
+const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export interface RefinedIdeaData {
   title: string;
@@ -27,17 +28,19 @@ export const analyzeProductIdea = async (idea: ProductIdea): Promise<RefinedIdea
     1. Create a professional and concise Title for the project.
     2. Extract the core Problem statement (the pain point).
     3. Extract the proposed Solution.
-    4. Perform a search for similar existing products, SaaS, or open-source GitHub repositories.
+    4. Perform an internal search for similar existing products, SaaS, or open-source GitHub repositories.
     5. Evaluate them based on semantic similarity.
     
     Return a detailed JSON object with refined fields and the similarity analysis.
   `;
 
+  // Note: googleSearch tool is removed here because it's incompatible with strict responseMimeType: "application/json".
+  // Grounding results often prevent valid JSON generation or return non-JSON text.
+  // Using gemini-3-pro-preview for complex analytical tasks.
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     contents: prompt,
     config: {
-      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -76,8 +79,8 @@ export const analyzeProductIdea = async (idea: ProductIdea): Promise<RefinedIdea
   });
 
   try {
-    const json = JSON.parse(response.text || '{}');
-    return json as RefinedIdeaData;
+    const text = response.text || '{}';
+    return JSON.parse(text.trim()) as RefinedIdeaData;
   } catch (e) {
     console.error("Failed to parse analysis JSON", e);
     throw new Error("Analysis failed");
@@ -97,6 +100,7 @@ export const suggestImprovements = async (idea: ProductIdea, analysis: Similarit
     Competitors: ${JSON.stringify(analysis.competitors)}
   `;
 
+  // Using gemini-3-flash-preview for improvement suggestions (basic text task).
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
@@ -119,7 +123,13 @@ export const suggestImprovements = async (idea: ProductIdea, analysis: Similarit
     }
   });
 
-  return JSON.parse(response.text || '[]');
+  try {
+    const text = response.text || '[]';
+    return JSON.parse(text.trim());
+  } catch (e) {
+    console.error("Failed to parse improvements JSON", e);
+    return [];
+  }
 };
 
 export const generateSRS = async (idea: ProductIdea): Promise<string> => {
@@ -142,6 +152,8 @@ export const generateSRS = async (idea: ProductIdea): Promise<string> => {
     The document should be highly detailed and professional.
   `;
 
+  // Upgraded to gemini-3-pro-preview for complex document generation.
+  // Using thinkingConfig to ensure high quality reasoning for technical specs.
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: prompt,

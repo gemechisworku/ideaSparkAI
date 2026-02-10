@@ -1,6 +1,7 @@
 
 export interface ProductIdea {
   id: string;
+  user_id?: string;
   rawIdea: string;
   title: string;
   problem: string;
@@ -42,5 +43,6 @@ export enum AppView {
   LANDING = 'LANDING',
   DASHBOARD = 'DASHBOARD',
   CREATE = 'CREATE',
-  VIEW_IDEA = 'VIEW_IDEA'
+  VIEW_IDEA = 'VIEW_IDEA',
+  LOGIN = 'LOGIN'
 }
